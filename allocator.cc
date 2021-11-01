@@ -1,10 +1,15 @@
 #include <stdio.h>
 #include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <sys/time.h>
 
 #include <iostream>
 
 #include "allocator.h"
+
+/***************************************
+ ********* CUDA Runtime API ************
+ ***************************************/
 
 void cuda_mem_get_info(size_t *free, size_t *total) {
   cudaError_t (*function)(size_t* free, size_t* total);
@@ -35,6 +40,10 @@ void print_last_error() {
   printf("[Allocator] error: %s\n", err_str);
 }
 
+size_t get_duration(struct timeval start, struct timeval end) {
+  return (size_t)(end.tv_sec - start.tv_sec) * 1000000 + (size_t)(end.tv_usec - start.tv_usec);
+}
+
 namespace pytorch_malloc {
 
 Allocator::Allocator() {
@@ -42,29 +51,40 @@ Allocator::Allocator() {
   size_t free, total;
   cuda_mem_get_info(&free, &total);
   std::cout << "[Allocator] free mem: " << free << " B, total mem: " << total << " B.\n";
-  cudaError_t err = cuda_malloc(&devPtr_, free);
-  // cudaMemGetInfo may give a free mem that is not accurate enough
-  while (err != cudaSuccess) {
-    print_last_error();
-    free -= (size_t)1024 * 1024;
-    err = cuda_malloc(&devPtr_, free);
-  }
-  std::cout << "free size: " << free << std::endl;
+  gettimeofday(&start_time_, NULL);
 }
 
 Allocator::~Allocator() {
   std::cout << "[Allocator] delete allocator\n";
-  cuda_free(devPtr_);
 }
 
-void Allocator::malloc(void **devPtr, size_t size) {
-  std::cout << "[Allocator] malloc: " << size << " B.\n";
-  *devPtr = devPtr_;
+cudaError_t Allocator::malloc(void **devPtr, size_t size) {
+  if (size == 0) return cudaSuccess;
+  cudaError_t error = cuda_malloc(devPtr, size);
+  PtrInfo info;
+  info.addr = (size_t)(*devPtr);
+  info.psize = size;
+  addr2info_[(size_t)(*devPtr)] = info;
+  struct timeval timestamp;
+  gettimeofday(&timestamp, NULL);
+  std::cout << "[Allocator] malloc(" << info.addr << "): " << size << " B, time: "
+            << get_duration(start_time_, timestamp) << " us.\n";
+  return error;
 }
 
-
-void Allocator::free(void *devPtr) {
-  std::cout << "[Allocator] free.\n";
+cudaError_t Allocator::free(void *devPtr) {
+  cudaError_t error = cuda_free(devPtr);
+  struct timeval timestamp;
+  gettimeofday(&timestamp, NULL);
+  if (addr2info_.find((size_t)devPtr) == addr2info_.end()) {
+    std::cout << "[Allocator] free unknown ptr, time: "
+              << get_duration(start_time_, timestamp) << " us.\n";;
+  } else {
+    PtrInfo info = addr2info_[(size_t)devPtr];
+    std::cout << "[Allocator] free(" << info.addr << "): " << info.psize << " B, time: "
+              << get_duration(start_time_, timestamp) << " us.\n";;
+  }
+  return error;
 }
 
 }  // end pytorch_malloc

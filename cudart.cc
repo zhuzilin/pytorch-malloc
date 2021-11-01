@@ -6,14 +6,12 @@ extern "C" {
 
 cudaError_t cudaMalloc(void **devPtr, size_t size) {
   pytorch_malloc::Allocator *allocator = pytorch_malloc::Allocator::Instance();
-  allocator->malloc(devPtr, size);
-  return cudaError_t::cudaSuccess;
+  return allocator->malloc(devPtr, size);
 }
 
 cudaError_t cudaFree(void *devPtr) {
   pytorch_malloc::Allocator *allocator = pytorch_malloc::Allocator::Instance();
-  allocator->free(devPtr);
-  return cudaError_t::cudaSuccess;
+  return allocator->free(devPtr);
 }
 
 }
