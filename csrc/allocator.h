@@ -5,10 +5,58 @@
 #include <unordered_map>
 #include <vector>
 #include <mutex>
+#include <iostream>
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 
 namespace pytorch_malloc {
+
+// Logging system
+enum LogLevel {
+  LOG_DEBUG = 0,
+  LOG_INFO = 1,
+  LOG_WARN = 2,
+  LOG_ERROR = 3
+};
+
+class Logger {
+public:
+  static Logger& getInstance() {
+    static Logger instance;
+    return instance;
+  }
+  
+  void setLogLevel(LogLevel level) { log_level_ = level; }
+  LogLevel getLogLevel() const { return log_level_; }
+  
+  template<typename... Args>
+  void log(LogLevel level, Args&&... args) {
+    if (level >= log_level_) {
+      std::cout << getLogLevelString(level) << " ";
+      (std::cout << ... << args);
+      std::cout << std::endl;
+    }
+  }
+  
+private:
+  Logger() : log_level_(LOG_WARN) {}  // Default to WARN level
+  LogLevel log_level_;
+  
+  const char* getLogLevelString(LogLevel level) {
+    switch (level) {
+      case LOG_DEBUG: return "[DEBUG]";
+      case LOG_INFO:  return "[INFO]";
+      case LOG_WARN:  return "[WARN]";
+      case LOG_ERROR: return "[ERROR]";
+      default:        return "[UNKNOWN]";
+    }
+  }
+};
+
+#define LOG_DEBUG(...) Logger::getInstance().log(LOG_DEBUG, __VA_ARGS__)
+#define LOG_INFO(...) Logger::getInstance().log(LOG_INFO, __VA_ARGS__)  
+#define LOG_WARN(...) Logger::getInstance().log(LOG_WARN, __VA_ARGS__)
+#define LOG_ERROR(...) Logger::getInstance().log(LOG_ERROR, __VA_ARGS__)
 
 class Allocator {
  public:
@@ -42,6 +90,9 @@ class Allocator {
   size_t get_total_allocated_size();
   size_t get_active_allocations_count();
   std::vector<PtrInfo> get_all_allocations();
+  
+  // Logging control
+  void set_log_level(LogLevel level) { Logger::getInstance().setLogLevel(level); }
 
  private:
   std::unordered_map<CUdeviceptr, PtrInfo> addr2info_;

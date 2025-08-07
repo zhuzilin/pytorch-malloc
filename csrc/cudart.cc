@@ -24,9 +24,4 @@ void resume() {
   allocator->reload_all();
 }
 
-void offloadAll() {
-  pytorch_malloc::Allocator *allocator = pytorch_malloc::Allocator::Instance();
-  allocator->offload_all();
-}
-
 }

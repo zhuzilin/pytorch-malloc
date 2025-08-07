@@ -86,7 +86,7 @@ Allocator::Allocator()
   , cuda_context_(nullptr)
   , device_id_(0) {
   
-  std::cout << "[Allocator] create allocator with CUDA Virtual Memory Management\n";
+  LOG_INFO("[Allocator] create allocator with CUDA Virtual Memory Management");
   
   // Initialize CUDA Driver API
   CUresult result = cuInit(0);
@@ -105,12 +105,12 @@ Allocator::Allocator()
   
   size_t free, total;
   cuda_mem_get_info(&free, &total);
-  std::cout << "[Allocator] free mem: " << free << " B, total mem: " << total << " B.\n";
+  LOG_INFO("[Allocator] free mem: ", free, " B, total mem: ", total, " B.");
   gettimeofday(&start_time_, NULL);
 }
 
 Allocator::~Allocator() {
-  std::cout << "[Allocator] delete allocator\n";
+  LOG_INFO("[Allocator] delete allocator");
   print_memory_stats();
   
   // Clean up any remaining offloaded memory
@@ -165,9 +165,8 @@ cudaError_t Allocator::malloc(void **devPtr, size_t size) {
   
   struct timeval timestamp;
   gettimeofday(&timestamp, NULL);
-  std::cout << "[Allocator] malloc(" << virtual_addr << "): " << size << " B (aligned: " << info.aligned_size << " B), time: "
-            << get_duration(start_time_, timestamp) << " us. Total allocated: " 
-            << total_allocated_bytes_ << " B.\n";
+  LOG_INFO("[Allocator] malloc(", virtual_addr, "): ", size, " B (aligned: ", info.aligned_size, " B), time: ",
+           get_duration(start_time_, timestamp), " us. Total allocated: ", total_allocated_bytes_, " B.");
             
   return cudaSuccess;
 }
@@ -181,8 +180,8 @@ cudaError_t Allocator::free(void *devPtr) {
   CUdeviceptr virtual_addr = (CUdeviceptr)devPtr;
   
   if (addr2info_.find(virtual_addr) == addr2info_.end()) {
-    std::cout << "[Allocator] free unknown ptr " << virtual_addr << ", time: "
-              << get_duration(start_time_, timestamp) << " us.\n";
+    LOG_WARN("[Allocator] free unknown ptr ", virtual_addr, ", time: ",
+             get_duration(start_time_, timestamp), " us.");
     return cudaSuccess;
   }
   
@@ -191,7 +190,7 @@ cudaError_t Allocator::free(void *devPtr) {
   // Free CPU pinned memory if exists
   if (info.cpu_ptr != nullptr) {
     free_cpu_pinned(info.cpu_ptr);
-    std::cout << "[Allocator] freed offloaded CPU memory for ptr " << virtual_addr << "\n";
+    LOG_INFO("[Allocator] freed offloaded CPU memory for ptr ", virtual_addr);
   }
   
   // Unmap and release virtual memory
@@ -205,9 +204,9 @@ cudaError_t Allocator::free(void *devPtr) {
   total_frees_count_++;
   
   if (info.size > 1024 * 1024) {
-    std::cout << "[Allocator] free(" << virtual_addr << "): " << info.size / 1024 / 1024 << " MB, time: "
-            << get_duration(start_time_, timestamp) << " us. Total allocated: " 
-            << total_allocated_bytes_ / 1024 / 1024 << " MB.\n";
+    LOG_INFO("[Allocator] free(", virtual_addr, "): ", info.size / 1024 / 1024, " MB, time: ",
+             get_duration(start_time_, timestamp), " us. Total allocated: ", 
+             total_allocated_bytes_ / 1024 / 1024, " MB.");
   }
   
   addr2info_.erase(virtual_addr);
@@ -303,7 +302,7 @@ cudaError_t Allocator::free_cpu_pinned(void* hostPtr) {
 cudaError_t Allocator::offload_all() {
   std::lock_guard<std::mutex> lock(allocator_mutex_);
   
-  std::cout << "[Allocator] Starting offload of all GPU memory to CPU...\n";
+  LOG_INFO("[Allocator] Starting offload of all GPU memory to CPU...");
   struct timeval start_offload;
   gettimeofday(&start_offload, NULL);
   
@@ -317,16 +316,16 @@ cudaError_t Allocator::offload_all() {
       void* cpu_ptr;
       cudaError_t error = allocate_cpu_pinned(&cpu_ptr, info.size);
       if (error != cudaSuccess) {
-        std::cout << "[Allocator] Failed to allocate CPU pinned memory for ptr " 
-                  << info.virtual_addr << ", size: " << info.size << " B\n";
+        LOG_ERROR("[Allocator] Failed to allocate CPU pinned memory for ptr ", 
+                  info.virtual_addr, ", size: ", info.size, " B");
         continue;
       }
       
       // Copy data from GPU to CPU (virtual address is stable)
       error = cuda_memcpy(cpu_ptr, (void*)info.virtual_addr, info.size, 2);  // cudaMemcpyDeviceToHost = 2
       if (error != cudaSuccess) {
-        std::cout << "[Allocator] Failed to copy data from GPU to CPU for ptr " 
-                  << info.virtual_addr << "\n";
+        LOG_ERROR("[Allocator] Failed to copy data from GPU to CPU for ptr ", 
+                  info.virtual_addr);
         free_cpu_pinned(cpu_ptr);
         continue;
       }
@@ -345,9 +344,9 @@ cudaError_t Allocator::offload_all() {
   struct timeval end_offload;
   gettimeofday(&end_offload, NULL);
   
-  std::cout << "[Allocator] Offload completed: " << count << " allocations, " 
-            << total_offloaded << " B, time: " 
-            << get_duration(start_offload, end_offload) << " us.\n";
+  LOG_INFO("[Allocator] Offload completed: ", count, " allocations, ", 
+           total_offloaded, " B, time: ", 
+           get_duration(start_offload, end_offload), " us.");
   
   return cudaSuccess;
 }
@@ -356,7 +355,7 @@ cudaError_t Allocator::offload_all() {
 cudaError_t Allocator::reload_all() {
   std::lock_guard<std::mutex> lock(allocator_mutex_);
   
-  std::cout << "[Allocator] Starting reload of all CPU memory back to GPU...\n";
+  LOG_INFO("[Allocator] Starting reload of all CPU memory back to GPU...");
   struct timeval start_reload;
   gettimeofday(&start_reload, NULL);
   
@@ -370,8 +369,8 @@ cudaError_t Allocator::reload_all() {
       // This is the key advantage of virtual memory management!
       
       if (!ensure_cuda_context()) {
-        std::cout << "[Allocator] Failed to ensure CUDA context for ptr " 
-                  << info.virtual_addr << "\n";
+        LOG_ERROR("[Allocator] Failed to ensure CUDA context for ptr ", 
+                  info.virtual_addr);
         continue;
       }
       
@@ -385,16 +384,16 @@ cudaError_t Allocator::reload_all() {
       CUmemGenericAllocationHandle new_mem_handle;
       CUresult result = cuMemCreate(&new_mem_handle, info.aligned_size, &prop, 0);
       if (result != CUDA_SUCCESS) {
-        std::cout << "[Allocator] Failed to create physical memory for ptr " 
-                  << info.virtual_addr << ", size: " << info.size << " B\n";
+        LOG_ERROR("[Allocator] Failed to create physical memory for ptr ", 
+                  info.virtual_addr, ", size: ", info.size, " B");
         continue;
       }
       
       // Map to the SAME virtual address (guaranteed to work!)
       result = cuMemMap(info.virtual_addr, info.aligned_size, 0, new_mem_handle, 0);
       if (result != CUDA_SUCCESS) {
-        std::cout << "[Allocator] Failed to map memory to virtual address " 
-                  << info.virtual_addr << "\n";
+        LOG_ERROR("[Allocator] Failed to map memory to virtual address ", 
+                  info.virtual_addr);
         cuMemRelease(new_mem_handle);
         continue;
       }
@@ -407,8 +406,8 @@ cudaError_t Allocator::reload_all() {
       
       result = cuMemSetAccess(info.virtual_addr, info.aligned_size, &access_desc, 1);
       if (result != CUDA_SUCCESS) {
-        std::cout << "[Allocator] Failed to set access permissions for ptr " 
-                  << info.virtual_addr << "\n";
+        LOG_ERROR("[Allocator] Failed to set access permissions for ptr ", 
+                  info.virtual_addr);
         cuMemUnmap(info.virtual_addr, info.aligned_size);
         cuMemRelease(new_mem_handle);
         continue;
@@ -417,8 +416,8 @@ cudaError_t Allocator::reload_all() {
       // Copy data from CPU back to GPU (same virtual address!)
       cudaError_t error = cuda_memcpy((void*)info.virtual_addr, info.cpu_ptr, info.size, 1);  // cudaMemcpyHostToDevice = 1
       if (error != cudaSuccess) {
-        std::cout << "[Allocator] Failed to copy data from CPU to GPU for ptr " 
-                  << info.virtual_addr << "\n";
+        LOG_ERROR("[Allocator] Failed to copy data from CPU to GPU for ptr ", 
+                  info.virtual_addr);
         cuMemUnmap(info.virtual_addr, info.aligned_size);
         cuMemRelease(new_mem_handle);
         continue;
@@ -432,16 +431,16 @@ cudaError_t Allocator::reload_all() {
       total_reloaded += info.size;
       count++;
       
-      std::cout << "[Allocator] Successfully reloaded ptr " << info.virtual_addr << " (virtual address unchanged!)\n";
+      LOG_DEBUG("[Allocator] Successfully reloaded ptr ", info.virtual_addr, " (virtual address unchanged!)");
     }
   }
   
   struct timeval end_reload;
   gettimeofday(&end_reload, NULL);
   
-  std::cout << "[Allocator] Reload completed: " << count << " allocations, " 
-            << total_reloaded << " B, time: " 
-            << get_duration(start_reload, end_reload) << " us.\n";
+  LOG_INFO("[Allocator] Reload completed: ", count, " allocations, ", 
+           total_reloaded, " B, time: ", 
+           get_duration(start_reload, end_reload), " us.");
   
   return cudaSuccess;
 }
@@ -466,16 +465,17 @@ void Allocator::print_memory_stats() {
     }
   }
   
-  std::cout << "\n[Allocator] Memory Statistics:\n";
-  std::cout << "  Active allocations: " << addr2info_.size() << " (" 
-            << gpu_count << " GPU, " << cpu_count << " CPU)\n";
-  std::cout << "  Current GPU memory: " << gpu_memory << " B\n";
-  std::cout << "  Current CPU memory: " << cpu_memory << " B\n";
-  std::cout << "  Total allocated: " << total_allocated_bytes_ << " B\n";
-  std::cout << "  Peak allocated: " << peak_allocated_bytes_ << " B\n";
-  std::cout << "  Total alloc calls: " << total_allocations_count_ << "\n";
-  std::cout << "  Total free calls: " << total_frees_count_ << "\n";
-  std::cout << std::endl;
+  LOG_INFO("");
+  LOG_INFO("[Allocator] Memory Statistics:");
+  LOG_INFO("  Active allocations: ", addr2info_.size(), " (", 
+           gpu_count, " GPU, ", cpu_count, " CPU)");
+  LOG_INFO("  Current GPU memory: ", gpu_memory, " B");
+  LOG_INFO("  Current CPU memory: ", cpu_memory, " B");
+  LOG_INFO("  Total allocated: ", total_allocated_bytes_, " B");
+  LOG_INFO("  Peak allocated: ", peak_allocated_bytes_, " B");
+  LOG_INFO("  Total alloc calls: ", total_allocations_count_);
+  LOG_INFO("  Total free calls: ", total_frees_count_);
+  LOG_INFO("");
 }
 
 size_t Allocator::get_total_allocated_size() {
