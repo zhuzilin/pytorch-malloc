@@ -1,3 +1,10 @@
+install:
+
+```bash
+pip install .
+```
+
+
 build:
 
 ```bash

@@ -137,7 +137,7 @@ cudaError_t Allocator::malloc(void **devPtr, size_t size) {
       
       struct timeval timestamp;
       gettimeofday(&timestamp, NULL);
-      LOG_INFO("[Allocator] disabled malloc(", addr, "): ", size / 1024 / 1024, " MB, time: ",
+      LOG_WARN("[Allocator] disabled malloc(", addr, "): ", size / 1024 / 1024, " MB, time: ",
                get_duration(start_time_, timestamp), " us.");
     }
     
