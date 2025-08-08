@@ -24,4 +24,24 @@ void resume() {
   allocator->reload_all();
 }
 
+void enable() {
+  pytorch_malloc::Allocator *allocator = pytorch_malloc::Allocator::Instance();
+  allocator->enable();
+}
+
+void disable() {
+  pytorch_malloc::Allocator *allocator = pytorch_malloc::Allocator::Instance();
+  allocator->disable();
+}
+
+void* my_malloc(ssize_t size, int device, cudaStream_t stream) {
+   void *ptr;
+   cudaMalloc(&ptr, size);
+   return ptr;
+}
+
+void my_free(void* ptr, ssize_t size, int device, cudaStream_t stream) {
+   cudaFree(ptr);
+}
+
 }

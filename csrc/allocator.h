@@ -85,6 +85,9 @@ class Allocator {
   cudaError_t offload_all();           // Offload all GPU memory to CPU pinned memory
   cudaError_t reload_all();            // Reload all CPU pinned memory back to GPU
   
+  void enable() { enable_ = true; }
+  void disable() { enable_ = false; }
+
   // Memory statistics
   void print_memory_stats();
   size_t get_total_allocated_size();
@@ -95,7 +98,9 @@ class Allocator {
   void set_log_level(LogLevel level) { Logger::getInstance().setLogLevel(level); }
 
  private:
+  bool enable_ = true;
   std::unordered_map<CUdeviceptr, PtrInfo> addr2info_;
+  std::unordered_map<CUdeviceptr, size_t> disabled_addr2size_;  // For disabled allocations
   struct timeval start_time_;
   std::mutex allocator_mutex_;  // Thread safety for allocations
   

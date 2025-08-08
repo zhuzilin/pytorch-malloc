@@ -1,0 +1,7 @@
+include README.md
+include Makefile
+include libcudart.so
+recursive-include csrc *.cc *.h
+recursive-include tests *.py
+global-exclude __pycache__
+global-exclude *.py[co]
