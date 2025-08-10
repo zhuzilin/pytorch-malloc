@@ -39,7 +39,7 @@ public:
   }
   
 private:
-  Logger() : log_level_(LOG_INFO) {}  // Default to INFO level
+  Logger() : log_level_(LOG_WARN) {}  // Default to INFO level
   LogLevel log_level_;
   
   const char* getLogLevelString(LogLevel level) {

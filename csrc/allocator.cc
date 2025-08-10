@@ -127,7 +127,7 @@ cudaError_t Allocator::malloc(void **devPtr, size_t size) {
   std::lock_guard<std::mutex> lock(allocator_mutex_);
 
   if (!enable_) {
-    LOG_WARN("[Allocator] malloc called while allocator is disabled");
+    LOG_INFO("[Allocator] malloc called while allocator is disabled");
     
     // Use traditional cudaMalloc but record the allocation
     cudaError_t result = cuda_malloc(devPtr, size);
@@ -137,7 +137,7 @@ cudaError_t Allocator::malloc(void **devPtr, size_t size) {
       
       struct timeval timestamp;
       gettimeofday(&timestamp, NULL);
-      LOG_WARN("[Allocator] disabled malloc(", addr, "): ", size / 1024 / 1024, " MB, time: ",
+      LOG_INFO("[Allocator] disabled malloc(", addr, "): ", size / 1024 / 1024, " MB, time: ",
                get_duration(start_time_, timestamp), " us.");
     }
     
@@ -183,7 +183,7 @@ cudaError_t Allocator::malloc(void **devPtr, size_t size) {
   
   struct timeval timestamp;
   gettimeofday(&timestamp, NULL);
-  LOG_WARN("[Allocator] malloc(", virtual_addr, "): ", size / 1024 / 1024, " MB (aligned: ", info.aligned_size / 1024 / 1024, " MB), time: ",
+  LOG_INFO("[Allocator] malloc(", virtual_addr, "): ", size / 1024 / 1024, " MB (aligned: ", info.aligned_size / 1024 / 1024, " MB), time: ",
            get_duration(start_time_, timestamp), " us. Total allocated: ", total_allocated_bytes_ / 1024 / 1024, " MB.");
             
   return cudaSuccess;
@@ -193,7 +193,7 @@ cudaError_t Allocator::free(void *devPtr) {
   std::lock_guard<std::mutex> lock(allocator_mutex_);
 
   if (!enable_) {
-    LOG_WARN("[Allocator] free called for disabled allocator");
+    LOG_INFO("[Allocator] free called for disabled allocator");
 
     struct timeval timestamp;
     gettimeofday(&timestamp, NULL);
@@ -203,7 +203,7 @@ cudaError_t Allocator::free(void *devPtr) {
     if (it != disabled_addr2size_.end()) {
       size_t size = it->second;
       disabled_addr2size_.erase(it);
-      LOG_WARN("[Allocator] disabled free(", addr, "): ", size / 1024 / 1024, " MB, time: ",
+      LOG_INFO("[Allocator] disabled free(", addr, "): ", size / 1024 / 1024, " MB, time: ",
                get_duration(start_time_, timestamp), " us.");
     } else {
       LOG_INFO("[Allocator] free unknown disabled ptr ", addr, ", time: ",
@@ -229,7 +229,7 @@ cudaError_t Allocator::free(void *devPtr) {
   // Free CPU pinned memory if exists
   if (info.cpu_ptr != nullptr) {
     free_cpu_pinned(info.cpu_ptr);
-    LOG_WARN("[Allocator] freed offloaded CPU memory for ptr ", virtual_addr);
+    LOG_INFO("[Allocator] freed offloaded CPU memory for ptr ", virtual_addr);
   }
   
   // Unmap and release virtual memory
@@ -243,7 +243,7 @@ cudaError_t Allocator::free(void *devPtr) {
   total_frees_count_++;
   
   if (info.size > 1024 * 1024) {
-    LOG_WARN("[Allocator] free(", virtual_addr, "): ", info.size / 1024 / 1024, " MB, time: ",
+    LOG_INFO("[Allocator] free(", virtual_addr, "): ", info.size / 1024 / 1024, " MB, time: ",
              get_duration(start_time_, timestamp), " us. Total allocated: ", 
              total_allocated_bytes_ / 1024 / 1024, " MB.");
   }
@@ -341,7 +341,7 @@ cudaError_t Allocator::free_cpu_pinned(void* hostPtr) {
 cudaError_t Allocator::offload_all() {
   std::lock_guard<std::mutex> lock(allocator_mutex_);
   
-  LOG_WARN("[Allocator] Starting offload of all GPU memory to CPU...");
+  LOG_INFO("[Allocator] Starting offload of all GPU memory to CPU...");
   struct timeval start_offload;
   gettimeofday(&start_offload, NULL);
   
